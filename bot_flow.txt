@@ -1,0 +1,236 @@
+https://clinic-booking-chatbot.onrender.com/webhook/zernio
+idle
+  └─ book_appointment
+       ├─ [new user] → collecting_name → collecting_email
+       │                → collecting_gender → collecting_age
+       │                → confirming_details
+       └─ [existing]  → selecting_specialization
+                           ├─ ai_symptom_collection (optional detour)
+                           └─ selecting_specialization
+                                → selecting_doctor
+                                → selecting_date
+                                → selecting_session
+                                → selecting_slot
+                                → confirming_booking ✅
+
+  └─ cancel_appointment
+       → selecting_cancel → confirming_cancel ✅
+
+
+
+sample data returned when a user sends hi
+
+
+{
+  "id": "5ba31fd1-53a9-4965-a943-734aa3860d2c",
+  "event": "message.received",
+
+  "message": {
+    "id": "6a2ef6e15f7d1751abb22f53",
+
+    "conversationId": "6a1ddd6f9956549faece8ae0",
+
+    "platform": "whatsapp",
+
+    "platformMessageId": "wamid.HBgMOTE5ODMzODUxNjIxFQIAEhggQUMyRTQ2OEMzNTRBOEFDRjdCNTE0RkFFNzFCNjgzOTgA",
+
+    "direction": "incoming",
+
+    "text": "📅 Book Appointmen",
+
+    "attachments": [],
+
+    "sender": {
+      "id": "919833851621",
+      "name": "Mitul",
+      "phoneNumber": "+919833851621",
+      "contactId": "6a1ddd6f9956549faece8af2"
+    },
+
+    "sentAt": "2026-06-14T18:45:50.000Z",
+
+    "isRead": false
+  },
+
+  "conversation": {
+    "id": "6a1ddd6f9956549faece8ae0",
+
+    "platformConversationId": "919833851621",
+
+    "participantId": "919833851621",
+
+    "participantName": "Mitul",
+
+    "participantUsername": "+919833851621",
+
+    "status": "active",
+
+    "contactId": "6a1ddd6f9956549faece8af2"
+  },
+
+  "account": {
+    "id": "6a180a034c7f364ffded3c9c",
+
+    "platform": "whatsapp",
+
+    "username": "+12029087457",
+
+    "displayName": "Zernio Sandbox"
+  },
+
+  "metadata": {
+    "interactiveType": "button_reply",
+
+    "interactiveId": "book_appointment",
+
+    "quotedMessageId": "wamid.HBgMOTE5ODMzODUxNjIxFQIAERgSNTM1MkJFNUMxNTBGRjVENjhCAA=="
+  },
+
+  "timestamp": "2026-06-14T18:45:53.511Z"
+}
+
+
+
+    # =========================
+    # HANDLE SESSIONS SELECTION
+    # =========================
+
+    elif session and session.current_step == "selecting_session":
+
+        sessions = get_available_sessions(
+            db,
+            session.selected_doctor_id,
+            session.selected_date
+        )
+
+        if not normalized_msg.isdigit():
+
+            reply = "Please enter a valid session number."
+
+        else:
+
+            selected_index = int(normalized_msg) - 1
+
+            if (
+                selected_index < 0
+                or selected_index >= len(sessions)
+            ):
+
+                reply = "Invalid session selection."
+
+            else:
+                slots = get_slots_for_selected_session(
+                    db,
+                    session.selected_doctor_id,
+                    session.selected_date,
+                    selected_index
+                )
+
+
+                slot_text = ""
+
+                for index, slot in enumerate(
+                    slots,
+                    start=1
+                ):
+
+                    start_time = slot.start_time.strftime(
+                        "%I:%M %p"
+                    )
+
+                    end_time = slot.end_time.strftime(
+                        "%I:%M %p"
+                    )
+
+                    slot_text += (
+                        f"{index}️⃣ "
+                        f"{start_time} - "
+                        f"{end_time}\n"
+                    )
+
+                reply = build_slot_list_page(
+                    slots,
+                    page=0
+                )
+
+    # =========================
+    # HANDLE SLOT SELECTION
+    # =========================
+    elif session and session.current_step == "selecting_slot":
+
+        slots = get_slots_for_selected_session(
+            db,
+            session.selected_doctor_id,
+            session.selected_date,
+            session.selected_session
+        )
+
+        if not normalized_msg.isdigit():
+
+            reply = "Please enter a valid slot number."
+
+        else:
+
+            selected_index = int(normalized_msg) - 1
+
+            if (
+                selected_index < 0
+                or selected_index >= len(slots)
+            ):
+
+                reply = "Invalid slot selection."
+
+            else:
+
+                selected_slot = slots[selected_index]
+
+                if selected_slot.status != "available":
+
+                    reply = (
+                        "Sorry, this slot was just booked.\n\n"
+                        "Please go back and choose another slot."
+                    )
+
+                else:
+
+                    selected_slot.status = "booked"
+
+                    user = db.query(User).filter(
+                        User.phone_number == user_number
+                    ).first()
+
+                    appointment = Appointment(
+                        user_id=user.id,
+                        doctor_id=session.selected_doctor_id,
+                        slot_id=selected_slot.id,
+                        appointment_date=selected_slot.slot_date,
+                        status="booked"
+                    )
+
+                    db.add(appointment)
+
+                    session.current_step            = "idle"
+                    session.selected_specialization = None
+                    session.selected_doctor_id      = None
+                    session.selected_date           = None
+                    session.selected_session = None
+                    db.commit()
+
+                    doctor = db.query(Doctor).filter(
+                        Doctor.id == appointment.doctor_id
+                    ).first()
+
+                    formatted_date = selected_slot.slot_date.strftime(
+                        "%d %B %Y"
+                    )
+                    start_time = selected_slot.start_time.strftime(
+                        "%I:%M %p"
+                    )
+
+                    reply = (
+                        f"✅ Appointment booked!\n\n"
+                        f"👨‍⚕️ Doctor: {doctor.name}\n"
+                        f"📅 Date: {formatted_date}\n"
+                        f"⏰ Time: {start_time}\n\n"
+                        f"Thank you!"
+                    )

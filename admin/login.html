@@ -1,0 +1,297 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Hair Destination — Admin Login</title>
+
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Playfair+Display:ital,wght@0,600;0,700;1,600&display=swap" rel="stylesheet">
+
+<script src="https://cdn.tailwindcss.com"></script>
+<script>
+  tailwind.config = {
+    theme: {
+      extend: {
+        colors: {
+          ink: '#0f172a',
+          plum: { 50:'#f0fdfa', 100:'#ccfbf1', 200:'#99f6e4', 400:'#2dd4bf', 600:'#0d9488', 700:'#0f766e', 900:'#134e4a' },
+          rose: { 50:'#fff1f2', 100:'#ffe4e6', 200:'#fecdd3', 400:'#fb7185', 500:'#f43f5e', 600:'#e11d48' },
+          gold: { 400:'#fbbf24', 500:'#f59e0b' },
+          cream: '#f8fafc',
+          sage: '#10b981',
+          terracotta: '#ef4444'
+        },
+        fontFamily: {
+          display: ['Playfair Display', 'serif'],
+          sans: ['Inter', 'sans-serif']
+        }
+      }
+    }
+  }
+</script>
+
+<style>
+  body { font-family: 'Inter', sans-serif; }
+  .font-display { font-family: 'Playfair Display', serif; }
+
+  .scissor-icon { overflow: visible; }
+  .scissor-icon .blade { transform-origin: 50px 46px; }
+  @media (prefers-reduced-motion: no-preference) {
+    .scissor-icon.animated .blade-top { animation: snipTop 1s ease-in-out infinite; }
+    .scissor-icon.animated .blade-bottom { animation: snipBottom 1s ease-in-out infinite; }
+  }
+  @keyframes snipTop { 0%,100% { transform: rotate(-9deg); } 50% { transform: rotate(7deg); } }
+  @keyframes snipBottom { 0%,100% { transform: rotate(9deg); } 50% { transform: rotate(-7deg); } }
+
+  #loading-overlay { transition: opacity .35s ease; }
+  #loading-overlay.hide { opacity: 0; pointer-events: none; }
+
+  @media (prefers-reduced-motion: reduce) {
+    * { animation-duration: 0.001ms !important; animation-iteration-count: 1 !important; }
+  }
+
+  .shake { animation: shake .4s ease; }
+  @keyframes shake {
+    0%,100% { transform: translateX(0); }
+    20%,60% { transform: translateX(-6px); }
+    40%,80% { transform: translateX(6px); }
+  }
+
+  .glass-panel {
+    background: rgba(255, 255, 255, 0.7);
+    backdrop-filter: blur(20px);
+    border: 1px solid rgba(255, 255, 255, 0.3);
+  }
+</style>
+</head>
+
+<body class="min-h-screen bg-cream text-plum-900 antialiased">
+
+<div class="min-h-screen grid grid-cols-1 lg:grid-cols-2">
+
+  <!-- ================= BRAND PANEL ================= -->
+  <div class="relative hidden lg:flex flex-col justify-between bg-gradient-to-br from-plum-900 via-ink to-slate-900 text-white p-16 overflow-hidden">
+    
+    <!-- Abstract decorative circles -->
+    <div class="absolute top-0 right-0 w-96 h-96 bg-plum-400/10 rounded-full blur-3xl -translate-y-1/2 translate-x-1/2"></div>
+    <div class="absolute bottom-0 left-0 w-80 h-80 bg-plum-600/10 rounded-full blur-3xl translate-y-1/2 -translate-x-1/2"></div>
+
+    <!-- decorative oversized scissor line-art -->
+    <svg class="scissor-icon absolute -right-12 -bottom-16 w-[400px] h-[400px] text-white/5" viewBox="0 0 100 100" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round">
+      <g class="blade blade-top">
+        <circle cx="28" cy="74" r="10"/>
+        <line x1="28" y1="74" x2="50" y2="46"/>
+        <line x1="50" y1="46" x2="82" y2="18"/>
+      </g>
+      <g class="blade blade-bottom">
+        <circle cx="72" cy="74" r="10"/>
+        <line x1="72" y1="74" x2="50" y2="46"/>
+        <line x1="50" y1="46" x2="18" y2="18"/>
+      </g>
+    </svg>
+
+    <div class="relative z-10 flex items-center gap-3">
+      <div class="w-10 h-10 rounded-xl bg-white/10 flex items-center justify-center backdrop-blur-sm border border-white/10">
+        <svg class="scissor-icon w-5 h-5 text-gold-400" viewBox="0 0 100 100" fill="none" stroke="currentColor" stroke-width="7" stroke-linecap="round">
+          <g class="blade blade-top">
+            <circle cx="28" cy="74" r="10"/>
+            <line x1="28" y1="74" x2="50" y2="46"/>
+            <line x1="50" y1="46" x2="82" y2="18"/>
+          </g>
+          <g class="blade blade-bottom">
+            <circle cx="72" cy="74" r="10"/>
+            <line x1="72" y1="74" x2="50" y2="46"/>
+            <line x1="50" y1="46" x2="18" y2="18"/>
+          </g>
+        </svg>
+      </div>
+      <span class="font-display text-xl tracking-wide">Hair Destination</span>
+    </div>
+
+    <div class="relative z-10 max-w-md">
+      <p class="font-display italic text-4xl leading-tight text-white/90">
+        "Where every cut tells a story."
+      </p>
+      <div class="mt-8 flex items-center gap-4">
+        <div class="h-px flex-1 bg-gradient-to-r from-white/20 to-transparent"></div>
+        <p class="text-xs text-white/40 uppercase tracking-[0.2em] font-medium">Admin Panel &middot; Salon Management</p>
+      </div>
+    </div>
+
+    <div class="relative z-10 text-sm text-white/30">
+      Secure, HIPAA-aware dashboard for managing appointments and client care.
+    </div>
+  </div>
+
+  <!-- ================= FORM PANEL ================= -->
+  <div class="flex items-center justify-center p-6 sm:p-12 lg:p-20 bg-[url('data:image/svg+xml,%3Csvg%20width%3D%2260%22%20height%3D%2260%22%20viewBox%3D%220%200%2060%2060%22%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%3E%3Cg%20fill%3D%22none%22%20fill-rule%3D%22evenodd%22%3E%3Cg%20fill%3D%22%230f766e%22%20fill-opacity%3D%220.03%22%3E%3Cpath%20d%3D%22M36%2034v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zm0-30V0h-2v4h-4v2h4v4h2V6h4V4h-4zM6%2034v-4H4v4H0v2h4v4h2v-4h4v-2H6zM6%204V0H4v4H0v2h4v4h2V6h4V4H6z%22%2F%3E%3C%2Fg%3E%3C%2Fg%3E%3C%2Fsvg%3E')]">
+
+    <div id="login-card" class="w-full max-w-md">
+
+      <!-- mobile-only logo -->
+      <div class="lg:hidden flex items-center gap-3 mb-10 justify-center">
+        <div class="w-10 h-10 rounded-xl bg-plum-700 flex items-center justify-center">
+          <svg class="scissor-icon w-5 h-5 text-white" viewBox="0 0 100 100" fill="none" stroke="currentColor" stroke-width="7" stroke-linecap="round">
+            <g class="blade blade-top">
+              <circle cx="28" cy="74" r="10"/>
+              <line x1="28" y1="74" x2="50" y2="46"/>
+              <line x1="50" y1="46" x2="82" y2="18"/>
+            </g>
+            <g class="blade blade-bottom">
+              <circle cx="72" cy="74" r="10"/>
+              <line x1="72" y1="74" x2="50" y2="46"/>
+              <line x1="50" y1="46" x2="18" y2="18"/>
+            </g>
+          </svg>
+        </div>
+        <span class="font-display text-xl text-plum-900">Hair Destination</span>
+      </div>
+
+      <div class="bg-white rounded-3xl shadow-xl shadow-plum-900/5 border border-slate-100 p-8 sm:p-10">
+        <div class="mb-8">
+          <h1 class="font-display text-3xl font-bold text-slate-900">Welcome back</h1>
+          <p class="text-sm text-slate-500 mt-2">Sign in to manage bookings, appointments, and client care.</p>
+        </div>
+
+        <div class="space-y-5">
+          <div>
+            <label for="username" class="block text-sm font-semibold text-slate-700 mb-2">Username</label>
+            <div class="relative">
+              <div class="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none">
+                <svg class="w-4 h-4 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"/></svg>
+              </div>
+              <input
+                id="username"
+                type="text"
+                autocomplete="username"
+                placeholder="Enter username"
+                class="w-full border border-slate-200 bg-slate-50/50 pl-10 pr-4 py-3 rounded-xl text-sm text-slate-900 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-plum-400 focus:border-transparent focus:bg-white transition-all"
+              >
+            </div>
+          </div>
+
+          <div>
+            <label for="password" class="block text-sm font-semibold text-slate-700 mb-2">Password</label>
+            <div class="relative">
+              <div class="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none">
+                <svg class="w-4 h-4 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"/></svg>
+              </div>
+              <input
+                id="password"
+                type="password"
+                autocomplete="current-password"
+                placeholder="Enter password"
+                class="w-full border border-slate-200 bg-slate-50/50 pl-10 pr-4 py-3 rounded-xl text-sm text-slate-900 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-plum-400 focus:border-transparent focus:bg-white transition-all"
+              >
+            </div>
+          </div>
+
+          <button
+            id="login-btn"
+            onclick="handleLogin()"
+            class="w-full bg-plum-700 hover:bg-plum-900 active:scale-[0.98] transition-all text-white py-3 rounded-xl font-semibold text-sm shadow-lg shadow-plum-700/25 mt-2"
+          >
+            Sign In
+          </button>
+        </div>
+
+        <p id="error" class="text-terracotta mt-5 text-sm text-center min-h-[1.25rem] font-medium"></p>
+      </div>
+
+      <p class="text-center text-xs text-slate-400 mt-8">
+        Protected admin area. Unauthorized access is prohibited.
+      </p>
+    </div>
+
+  </div>
+
+</div>
+
+<!-- ================= LOADING OVERLAY ================= -->
+<div id="loading-overlay" class="hidden fixed inset-0 z-50 bg-ink/90 backdrop-blur-md flex flex-col items-center justify-center text-white">
+  <div class="relative">
+    <div class="absolute inset-0 bg-gold-400/20 rounded-full blur-xl animate-pulse"></div>
+    <svg class="scissor-icon animated w-16 h-16 text-gold-400 relative" viewBox="0 0 100 100" fill="none" stroke="currentColor" stroke-width="6" stroke-linecap="round">
+      <g class="blade blade-top">
+        <circle cx="28" cy="74" r="10"/>
+        <line x1="28" y1="74" x2="50" y2="46"/>
+        <line x1="50" y1="46" x2="82" y2="18"/>
+      </g>
+      <g class="blade blade-bottom">
+        <circle cx="72" cy="74" r="10"/>
+        <line x1="72" y1="74" x2="50" y2="46"/>
+        <line x1="50" y1="46" x2="18" y2="18"/>
+      </g>
+    </svg>
+  </div>
+  <p class="font-display italic text-xl mt-6 text-white/90">Preparing your dashboard…</p>
+  <div class="mt-4 w-32 h-1 bg-white/10 rounded-full overflow-hidden">
+    <div class="h-full bg-gold-400/60 rounded-full animate-[shimmer_1.5s_ease-in-out_infinite]" style="width: 60%; animation: shimmer 1.5s ease-in-out infinite;"></div>
+  </div>
+</div>
+
+<style>
+  @keyframes shimmer {
+    0% { transform: translateX(-100%); }
+    100% { transform: translateX(200%); }
+  }
+</style>
+
+<!-- IMPORTANT -->
+<script src="/admin/js/auth.js"></script>
+
+<script>
+  function handleLogin() {
+    const errorEl = document.getElementById('error');
+    const overlay = document.getElementById('loading-overlay');
+    const btn = document.getElementById('login-btn');
+    const card = document.getElementById('login-card');
+
+    errorEl.textContent = '';
+    btn.disabled = true;
+    overlay.classList.remove('hidden', 'hide');
+
+    // Watch the existing #error element populated by auth.js's login().
+    // If it gets a message, login failed — hide the overlay and let the
+    // error show instead of leaving the user stuck on the loading screen.
+    const observer = new MutationObserver(() => {
+      if (errorEl.textContent.trim() !== '') {
+        overlay.classList.add('hide');
+        setTimeout(() => overlay.classList.add('hidden'), 350);
+        btn.disabled = false;
+        card.classList.remove('shake');
+        void card.offsetWidth;
+        card.classList.add('shake');
+        observer.disconnect();
+      }
+    });
+    observer.observe(errorEl, { childList: true, characterData: true, subtree: true });
+
+    // Safety net: if auth.js neither redirects nor raises an error within
+    // a few seconds (e.g. network issue), don't leave the user stuck.
+    setTimeout(() => {
+      if (!overlay.classList.contains('hide') && document.body.contains(overlay)) {
+        if (errorEl.textContent.trim() === '') {
+          overlay.classList.add('hide');
+          setTimeout(() => overlay.classList.add('hidden'), 350);
+          btn.disabled = false;
+        }
+      }
+    }, 6000);
+
+    login();
+  }
+
+  // Allow submitting with Enter key
+  document.getElementById('password').addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') handleLogin();
+  });
+  document.getElementById('username').addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') handleLogin();
+  });
+</script>
+
+</body>
+</html>

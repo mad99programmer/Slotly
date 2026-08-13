@@ -1,0 +1,116 @@
+
+<div id="erd" style="padding: 8px 0;"></div>
+<script type="module">
+import mermaid from 'https://esm.sh/mermaid@11/dist/mermaid.esm.min.mjs';
+const dark = matchMedia('(prefers-color-scheme: dark)').matches;
+await document.fonts.ready;
+mermaid.initialize({
+  startOnLoad: false,
+  theme: 'base',
+  fontFamily: '"Anthropic Sans", sans-serif',
+  themeVariables: {
+    darkMode: dark,
+    fontSize: '13px',
+    fontFamily: '"Anthropic Sans", sans-serif',
+    lineColor: dark ? '#9c9a92' : '#73726c',
+    textColor: dark ? '#c2c0b6' : '#3d3d3a',
+  },
+});
+const { svg } = await mermaid.render('erd-svg', `erDiagram
+  USER {
+    int id PK
+    string phone_number
+    string name
+    string email
+    string gender
+    datetime created_at
+  }
+  USER_SESSION {
+    int id PK
+    int user_id FK
+    string phone_number
+    string current_step
+    string temp_name
+    string temp_email
+    string temp_gender
+    string selected_specialization
+    int selected_doctor_id
+    int selected_slot_id
+    date selected_date
+    datetime created_at
+  }
+  DOCTOR {
+    int id PK
+    string name
+    string specialization
+    string qualification
+    int experience_years
+    int consultation_fee
+    int consultation_duration
+    bool is_active
+    datetime created_at
+  }
+  DOCTOR_AVAILABILITY {
+    int id PK
+    int doctor_id FK
+    string weekday
+    time start_time
+    time end_time
+    bool is_active
+    datetime created_at
+  }
+  DOCTOR_SLOT {
+    int id PK
+    int doctor_id FK
+    int availability_id FK
+    date slot_date
+    time start_time
+    time end_time
+    string status
+    datetime created_at
+  }
+  APPOINTMENT {
+    int id PK
+    int user_id FK
+    int doctor_id FK
+    int slot_id FK
+    date appointment_date
+    string status
+    string notes
+    datetime created_at
+  }
+
+  USER ||--o{ USER_SESSION : "tracks chatbot state"
+  USER ||--o{ APPOINTMENT : "books"
+  DOCTOR ||--o{ DOCTOR_AVAILABILITY : "has weekly schedule"
+  DOCTOR_AVAILABILITY ||--o{ DOCTOR_SLOT : "generates"
+  DOCTOR ||--o{ DOCTOR_SLOT : "has"
+  DOCTOR ||--o{ APPOINTMENT : "receives"
+  DOCTOR_SLOT ||--|| APPOINTMENT : "filled by"
+`);
+document.getElementById('erd').innerHTML = svg;
+
+document.querySelectorAll('#erd svg.erDiagram .node').forEach(node => {
+  const firstPath = node.querySelector('path[d]');
+  if (!firstPath) return;
+  const d = firstPath.getAttribute('d');
+  const nums = d.match(/-?[\d.]+/g)?.map(Number);
+  if (!nums || nums.length < 8) return;
+  const xs = [nums[0], nums[2], nums[4], nums[6]];
+  const ys = [nums[1], nums[3], nums[5], nums[7]];
+  const x = Math.min(...xs), y = Math.min(...ys);
+  const w = Math.max(...xs) - x, h = Math.max(...ys) - y;
+  const rect = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
+  rect.setAttribute('x', x); rect.setAttribute('y', y);
+  rect.setAttribute('width', w); rect.setAttribute('height', h);
+  rect.setAttribute('rx', '8');
+  for (const a of ['fill', 'stroke', 'stroke-width', 'class', 'style']) {
+    if (firstPath.hasAttribute(a)) rect.setAttribute(a, firstPath.getAttribute(a));
+  }
+  firstPath.replaceWith(rect);
+});
+
+document.querySelectorAll('#erd svg.erDiagram .row-rect-odd path, #erd svg.erDiagram .row-rect-even path').forEach(p => {
+  p.setAttribute('stroke', 'none');
+});
+</script>
