@@ -287,7 +287,12 @@ async function loadDashboard() {
     const appointments = await apiGet('/admin/appointments');
     if (!appointments) return;
 
-    const today = new Date().toISOString().split('T')[0];
+    const today = new Intl.DateTimeFormat(
+        'en-CA',
+        {
+            timeZone: 'Asia/Kolkata'
+        }
+    ).format(new Date());
 
     const todayAppointments = appointments.filter(a => a.date === today && a.status === 'booked');
     const upcomingAppointments = appointments.filter(a => a.date >= today && a.status === 'booked');
