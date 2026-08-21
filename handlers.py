@@ -1,3 +1,7 @@
+import time
+import logging
+
+
 from models import (
     User,
     Business,
@@ -41,6 +45,8 @@ MENU_COMMANDS = [
     "menu",
     "reset"
 ]
+logger = logging.getLogger("slotly")
+
 
 def process_message(
     user_number,
@@ -48,7 +54,7 @@ def process_message(
     db,
     webhook_data=None
 ):
-
+    handler_start = time.perf_counter()
     normalized_msg = incoming_msg.lower().strip()
 
     interactive_payload = extract_payload(webhook_data)
@@ -239,6 +245,7 @@ def process_message(
         and effective_input == "menu_my_appointments"
     ):
 
+        appointments_start = time.perf_counter()
         appointments = (
             db.query(
                 Appointment,
@@ -264,6 +271,16 @@ def process_message(
                 Appointment.start_time
             )
             .all()
+        )
+        appointments_time = (
+            time.perf_counter() - appointments_start
+        ) * 1000
+
+        logger.info(
+            "[DB] My appointments query | user_id=%s | time=%.2f ms | rows=%d",
+            session.user_id,
+            appointments_time,
+            len(appointments)
         )
 
         # --------------------------------------
@@ -614,6 +631,41 @@ def process_message(
             working_hours.end_time
         )
 
+        #available_slots = []
+        # --------------------------------------
+        # Fetch all booked slot counts ONCE
+        # --------------------------------------
+        slot_query_start = time.perf_counter()
+        booked_rows = (
+            db.query(
+                Appointment.start_time
+            )
+            .filter(
+                Appointment.branch_id == session.branch_id,
+                Appointment.appointment_date == session.selected_date,
+                Appointment.status == "booked"
+            )
+            .all()
+        )
+        slot_query_time = (
+            time.perf_counter() - slot_query_start
+        ) * 1000
+
+        logger.info(
+            "[DB] Slot availability query | branch=%s | date=%s | time=%.2f ms | rows=%d",
+            session.branch_id,
+            session.selected_date,
+            slot_query_time,
+            len(booked_rows)
+        )
+        booked_count_map = {}
+
+        for row in booked_rows:
+            booked_count_map[row[0]] = (
+                booked_count_map.get(row[0], 0) + 1
+            )
+
+
         available_slots = []
 
         while current_datetime < closing_datetime:
@@ -623,26 +675,15 @@ def process_message(
                 + timedelta(minutes=slot_duration)
             )
 
-            # Don't create a slot beyond
-            # closing time
             if slot_end_datetime > closing_datetime:
                 break
 
             slot_start = current_datetime.time()
             slot_end = slot_end_datetime.time()
 
-            # -------------------------------
-            # Check Capacity
-            # -------------------------------
-            booked_count = (
-                db.query(Appointment)
-                .filter(
-                    Appointment.branch_id == session.branch_id,
-                    Appointment.appointment_date == selected_date,
-                    Appointment.start_time == slot_start,
-                    Appointment.status == "booked"
-                )
-                .count()
+            booked_count = booked_count_map.get(
+                slot_start,
+                0
             )
 
             if booked_count < branch.capacity:
@@ -653,6 +694,7 @@ def process_message(
                 })
 
             current_datetime = slot_end_datetime
+
 
         # -------------------------------
         # No Available Slots
@@ -767,6 +809,7 @@ def process_message(
         # --------------------------------------
         # Generate slots dynamically
         # --------------------------------------
+        slot_duration = branch.slot_duration_minutes
         current_datetime = datetime.combine(
             session.selected_date,
             working_hours.start_time
@@ -777,36 +820,62 @@ def process_message(
             working_hours.end_time
         )
 
+        #available_slots = []
+        # --------------------------------------
+        # Fetch all booked slot counts ONCE
+        # --------------------------------------
+        slot_query_start = time.perf_counter()
+
+        booked_rows = (
+            db.query(
+                Appointment.start_time
+            )
+            .filter(
+                Appointment.branch_id == session.branch_id,
+                Appointment.appointment_date == session.selected_date,
+                Appointment.status == "booked"
+            )
+            .all()
+        )
+        slot_query_time = (
+            time.perf_counter() - slot_query_start
+        ) * 1000
+
+        logger.info(
+            "[DB] SELECT_SESSION booked slots | "
+            "branch=%s | date=%s | time=%.2f ms | rows=%d",
+            session.branch_id,
+            session.selected_date,
+            slot_query_time,
+            len(booked_rows)
+        )
+
+        booked_count_map = {}
+
+        for row in booked_rows:
+            booked_count_map[row[0]] = (
+                booked_count_map.get(row[0], 0) + 1
+            )
+
+
         available_slots = []
 
         while current_datetime < closing_datetime:
 
             slot_end_datetime = (
                 current_datetime
-                + timedelta(
-                    minutes=branch.slot_duration_minutes
-                )
+                + timedelta(minutes=slot_duration)
             )
 
-            # Don't generate a slot beyond closing time
             if slot_end_datetime > closing_datetime:
                 break
 
             slot_start = current_datetime.time()
             slot_end = slot_end_datetime.time()
 
-            # ----------------------------------
-            # Check appointment capacity
-            # ----------------------------------
-            booked_count = (
-                db.query(Appointment)
-                .filter(
-                    Appointment.branch_id == session.branch_id,
-                    Appointment.appointment_date == session.selected_date,
-                    Appointment.start_time == slot_start,
-                    Appointment.status == "booked"
-                )
-                .count()
+            booked_count = booked_count_map.get(
+                slot_start,
+                0
             )
 
             if booked_count < branch.capacity:
@@ -817,7 +886,7 @@ def process_message(
                 })
 
             current_datetime = slot_end_datetime
-
+        
         # --------------------------------------
         # Filter slots for selected session
         # --------------------------------------
@@ -914,6 +983,7 @@ def process_message(
         # --------------------------------------
         # Generate Dynamic Slots
         # --------------------------------------
+        slot_duration = branch.slot_duration_minutes
         current_datetime = datetime.combine(
             session.selected_date,
             working_hours.start_time
@@ -924,15 +994,50 @@ def process_message(
             working_hours.end_time
         )
 
+        #available_slots = []
+        # --------------------------------------
+        # Fetch all booked slot counts ONCE
+        # --------------------------------------
+        slot_query_start = time.perf_counter()
+        booked_rows = (
+            db.query(
+                Appointment.start_time
+            )
+            .filter(
+                Appointment.branch_id == session.branch_id,
+                Appointment.appointment_date == session.selected_date,
+                Appointment.status == "booked"
+            )
+            .all()
+        )
+        slot_query_time = (
+            time.perf_counter() - slot_query_start
+        ) * 1000
+
+        logger.info(
+            "[DB] SELECT_SLOT booked slots | "
+            "branch=%s | date=%s | time=%.2f ms | rows=%d",
+            session.branch_id,
+            session.selected_date,
+            slot_query_time,
+            len(booked_rows)
+        )
+
+        booked_count_map = {}
+
+        for row in booked_rows:
+            booked_count_map[row[0]] = (
+                booked_count_map.get(row[0], 0) + 1
+            )
+
+
         available_slots = []
 
         while current_datetime < closing_datetime:
 
             slot_end_datetime = (
                 current_datetime
-                + timedelta(
-                    minutes=branch.slot_duration_minutes
-                )
+                + timedelta(minutes=slot_duration)
             )
 
             if slot_end_datetime > closing_datetime:
@@ -941,18 +1046,9 @@ def process_message(
             slot_start = current_datetime.time()
             slot_end = slot_end_datetime.time()
 
-            # ----------------------------------
-            # Check Capacity
-            # ----------------------------------
-            booked_count = (
-                db.query(Appointment)
-                .filter(
-                    Appointment.branch_id == session.branch_id,
-                    Appointment.appointment_date == session.selected_date,
-                    Appointment.start_time == slot_start,
-                    Appointment.status == "booked"
-                )
-                .count()
+            booked_count = booked_count_map.get(
+                slot_start,
+                0
             )
 
             if booked_count < branch.capacity:
@@ -963,7 +1059,7 @@ def process_message(
                 })
 
             current_datetime = slot_end_datetime
-
+        
         # --------------------------------------
         # Filter Selected Session
         # --------------------------------------
@@ -1253,7 +1349,15 @@ def process_message(
 
         return "Invalid booking option."
         
-    
+    handler_time = (
+        time.perf_counter() - handler_start
+    ) * 1000
+
+    logger.info(
+        "[HANDLER] Completed | step=%s | time=%.2f ms",
+        session.step,
+        handler_time
+    )
     # ==========================================
     # UNKNOWN MESSAGE
     # ==========================================

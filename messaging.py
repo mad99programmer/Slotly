@@ -2,6 +2,7 @@ from config import TEST_MODE, ZERNIO_API_KEY
 
 import requests
 import time
+import logging
 
 from helpers import (
     extract_payload,
@@ -10,7 +11,7 @@ from helpers import (
     has_previous_page
 )
 
-
+logger = logging.getLogger("slotly")
 # ==========================================================
 # MAIN MENU
 # ==========================================================
@@ -96,7 +97,11 @@ def send_reply(
     print("=" * 80)
     print("OUTGOING BODY")
     print("=" * 80)
-    print(body)
+    logger.info(
+        "[ZERNIO] Outgoing message | message=%s | buttons=%s",
+        body.get("message", ""),
+        body.get("buttons", "")
+    )
 
     url = (
         "https://zernio.com/api/v1/inbox/conversations/"
@@ -113,7 +118,7 @@ def send_reply(
     for attempt in range(max_retries):
 
         try:
-
+            request_start = time.perf_counter()
             response = requests.post(
                 url,
                 headers=headers,
@@ -121,18 +126,36 @@ def send_reply(
                 timeout=30
             )
 
+            '''
             print(
                 f"Attempt {attempt + 1} "
                 f"Status : {response.status_code}"
             )
 
             print(response.text)
+            
+            '''
+            request_time = (
+                time.perf_counter() - request_start
+            ) * 1000
+
+            logger.info(
+                "[ZERNIO] Attempt %d | status=%s | time=%.2f ms",
+                attempt + 1,
+                response.status_code,
+                request_time
+            )
+
 
             # --------------------------------------------------
             # SUCCESS
             # --------------------------------------------------
 
             if response.status_code in [200, 201]:
+                logger.info(
+                    "[ZERNIO] Message sent successfully | attempt=%d",
+                    attempt + 1
+                )
 
                 return True
 
@@ -151,10 +174,20 @@ def send_reply(
 
                     wait = 2 ** attempt
 
+                    '''
+
                     print(
                         "Transient error."
                         f" Retrying in {wait} seconds..."
                     )
+                    '''
+                    logger.warning(
+                        "[ZERNIO] Transient error | attempt=%d | status=%s | retry_in=%d sec",
+                        attempt + 1,
+                        response.status_code,
+                        wait
+                    )
+                                    
 
                     time.sleep(wait)
 
@@ -168,28 +201,43 @@ def send_reply(
 
         except requests.exceptions.Timeout:
 
-            print("Request timed out.")
+            #print("Request timed out.")
+            logger.error(
+                "[ZERNIO] Request timed out | attempt=%d",
+                attempt + 1
+            )
 
         except requests.exceptions.ConnectionError:
 
-            print("Unable to connect to Zernio.")
+            #print("Unable to connect to Zernio.")
+            logger.error(
+                "[ZERNIO] Connection error | attempt=%d",
+                attempt + 1
+            )
 
         except requests.exceptions.RequestException as e:
 
-            print(e)
+            #print(e)
+            logger.exception(
+                "[ZERNIO] Request exception | attempt=%d | error=%s",
+                attempt + 1,
+                e
+            )
 
         if attempt < max_retries - 1:
 
             wait = 2 ** attempt
 
-            print(
-                f"Retrying in {wait} seconds..."
+            logger.warning(
+                "[ZERNIO] Retry after exception | attempt=%d | retry_in=%d sec",
+                attempt + 1,
+                wait
             )
 
             time.sleep(wait)
 
-    print(
-        "Failed to send message after all retries."
+    logger.error(
+        "[ZERNIO] Failed to send message after all retries"
     )
 
     return False

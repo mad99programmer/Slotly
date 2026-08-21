@@ -11,6 +11,18 @@ import json
 from datetime import datetime
 from zoneinfo import ZoneInfo
 from fastapi.responses import FileResponse
+import logging
+import time
+
+
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s | %(levelname)s | %(message)s"
+)
+
+logger = logging.getLogger("slotly")
+
+
 print("Server datetime :", datetime.now())
 print("UTC datetime    :", datetime.utcnow())
 print("IST datetime    :", datetime.now(ZoneInfo("Asia/Kolkata")))
@@ -119,8 +131,9 @@ async def health_check():
 # =========================
 @app.post("/webhook/zernio")
 async def webhook_zernio(request: Request, db: Session = Depends(get_db)):
+    webhook_start = time.perf_counter()
     payload = await request.json()
-
+    '''
     print("RAW PAYLOAD:")
     print(
         json.dumps(
@@ -128,6 +141,10 @@ async def webhook_zernio(request: Request, db: Session = Depends(get_db)):
             indent=4,
             ensure_ascii=False
         )
+    )'''
+    logger.info(
+        "[WEBHOOK] Received | event=%s",
+        payload.get("event")
     )
 
     if payload.get("event") == "message.received":
@@ -141,9 +158,34 @@ async def webhook_zernio(request: Request, db: Session = Depends(get_db)):
         incoming_msg = message.get("text", "").strip()
         conversation_id = message.get("conversationId")
         account_id = account.get("id")
-
+        process_start = time.perf_counter()
         reply = process_message(user_number, incoming_msg, db,webhook_data=payload)
+        process_time = (
+            time.perf_counter() - process_start
+        ) * 1000
+
+        logger.info(
+            "[PROCESS] Completed | time=%.2f ms",
+            process_time
+        )
+        send_start = time.perf_counter()
         send_reply(conversation_id, account_id, reply)
+        send_time = (
+            time.perf_counter() - send_start
+        ) * 1000
+        logger.info(
+            "[ZERNIO] Reply completed | time=%.2f ms",
+            send_time
+        )
+
+        total_time = (
+            time.perf_counter() - webhook_start
+        ) * 1000
+
+        logger.info(
+            "[WEBHOOK] Completed | total=%.2f ms",
+            total_time
+        )
 
     return {"status": "ok"}
 
