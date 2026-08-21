@@ -192,36 +192,4 @@ async def webhook_zernio(request: Request, db: Session = Depends(get_db)):
     
 
 
-    return {"status": "ok"}
-
-
-'''
-# =========================
-# LOCAL TEST ENDPOINT
-# =========================
-@app.get("/test")
-async def test_chat(
-    msg: str,
-    user: str = "9999999999",
-    db: Session = Depends(get_db)
-):
-
-    reply = process_message(
-        user,
-        msg,
-        db
-    )
-
-    return {
-        "user_message": msg,
-        "bot_reply": reply
-    }
-
-@app.get("/run-slot-generator")
-def run_slot_generator():
-    from slot_generator import generate_slots_for_next_7_days
-    generate_slots_for_next_7_days()
-    return {"status": "slots generated"}
-
-'''
-
+    

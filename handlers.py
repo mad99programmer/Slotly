@@ -54,7 +54,7 @@ def process_message(
     db,
     webhook_data=None
 ):
-    handler_start = time.perf_counter()
+    handler_start = time_module.perf_counter()
     normalized_msg = incoming_msg.lower().strip()
 
     interactive_payload = extract_payload(webhook_data)
@@ -245,7 +245,7 @@ def process_message(
         and effective_input == "menu_my_appointments"
     ):
 
-        appointments_start = time.perf_counter()
+        appointments_start = time_module.perf_counter()
         appointments = (
             db.query(
                 Appointment,
@@ -273,7 +273,7 @@ def process_message(
             .all()
         )
         appointments_time = (
-            time.perf_counter() - appointments_start
+            time_module.perf_counter() - appointments_start
         ) * 1000
 
         logger.info(
@@ -635,7 +635,7 @@ def process_message(
         # --------------------------------------
         # Fetch all booked slot counts ONCE
         # --------------------------------------
-        slot_query_start = time.perf_counter()
+        slot_query_start = time_module.perf_counter()
         booked_rows = (
             db.query(
                 Appointment.start_time
@@ -648,7 +648,7 @@ def process_message(
             .all()
         )
         slot_query_time = (
-            time.perf_counter() - slot_query_start
+            time_module.perf_counter() - slot_query_start
         ) * 1000
 
         logger.info(
@@ -824,7 +824,7 @@ def process_message(
         # --------------------------------------
         # Fetch all booked slot counts ONCE
         # --------------------------------------
-        slot_query_start = time.perf_counter()
+        slot_query_start = time_module.perf_counter()
 
         booked_rows = (
             db.query(
@@ -838,7 +838,7 @@ def process_message(
             .all()
         )
         slot_query_time = (
-            time.perf_counter() - slot_query_start
+            time_module.perf_counter() - slot_query_start
         ) * 1000
 
         logger.info(
@@ -998,7 +998,7 @@ def process_message(
         # --------------------------------------
         # Fetch all booked slot counts ONCE
         # --------------------------------------
-        slot_query_start = time.perf_counter()
+        slot_query_start = time_module.perf_counter()
         booked_rows = (
             db.query(
                 Appointment.start_time
@@ -1011,7 +1011,7 @@ def process_message(
             .all()
         )
         slot_query_time = (
-            time.perf_counter() - slot_query_start
+            time_module.perf_counter() - slot_query_start
         ) * 1000
 
         logger.info(
@@ -1350,7 +1350,7 @@ def process_message(
         return "Invalid booking option."
         
     handler_time = (
-        time.perf_counter() - handler_start
+        time_module.perf_counter() - handler_start
     ) * 1000
 
     logger.info(
