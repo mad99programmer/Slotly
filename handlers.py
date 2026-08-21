@@ -1,4 +1,4 @@
-import time
+import time as time_module
 import logging
 
 
