@@ -11,9 +11,9 @@ BOOKING_SESSIONS = [
     {
         "id": "morning",
         "title": "🌅 Morning",
-        "start": time(10, 30),
+        "start": time(10, 0),
         "end": time(12, 30),
-        "time": "10:30 AM - 12:30 PM"
+        "time": "10:00 AM - 12:30 PM"
     },
     {
         "id": "afternoon",
@@ -26,8 +26,8 @@ BOOKING_SESSIONS = [
         "id": "evening",
         "title": "🌆 Evening",
         "start": time(16, 30),
-        "end": time(20, 30),
-        "time": "04:30 PM - 08:30 PM"
+        "end": time(20, 0),
+        "time": "04:30 PM - 08:00 PM"
     }
 ]
 def extract_payload(webhook_data):

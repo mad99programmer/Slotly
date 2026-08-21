@@ -82,7 +82,8 @@ class Branch(Base):
     address = Column(
         String(500)
     )
-
+    maps_url = Column(String(500))
+    
     phone = Column(
         String(20)
     )
@@ -290,7 +291,6 @@ class User(Base):
         onupdate=func.now()
     )
 
-
 # ==========================================================
 # USER SESSION
 # ==========================================================
@@ -339,11 +339,30 @@ class UserSession(Base):
         String(100),
         nullable=True
     )
-    selected_date = Column(Date, nullable=True)
+
+    # Selected appointment date
+    selected_date = Column(
+        Date,
+        nullable=True
+    )
+
+    # Selected time for the NEW dynamic-slot system
+    selected_start_time = Column(
+        Time,
+        nullable=True
+    )
+
+    selected_end_time = Column(
+        Time,
+        nullable=True
+    )
+
+    # Kept for compatibility with the OLD booking flow
     selected_session = Column(
         String(20),
         nullable=True
     )
+
     branch_slot_id = Column(
         Integer,
         ForeignKey("branch_slots.id"),
@@ -361,6 +380,9 @@ class UserSession(Base):
         onupdate=func.now()
     )
 
+# ==========================================================
+# Appointment
+# ==========================================================
 class Appointment(Base):
     __tablename__ = "appointments"
 
@@ -390,9 +412,26 @@ class Appointment(Base):
         nullable=False
     )
 
+    # Kept for compatibility with the OLD booking system
     branch_slot_id = Column(
         Integer,
         ForeignKey("branch_slots.id"),
+        nullable=True
+    )
+
+    # NEW dynamic-booking fields
+    appointment_date = Column(
+        Date,
+        nullable=False
+    )
+
+    start_time = Column(
+        Time,
+        nullable=False
+    )
+
+    end_time = Column(
+        Time,
         nullable=False
     )
 

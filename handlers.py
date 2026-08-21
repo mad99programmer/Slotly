@@ -1,16 +1,25 @@
-from models import (User,Business, Branch, UserSession,
-                    Service,BranchSlot,Appointment)
+from models import (
+    User,
+    Business,
+    Branch,
+    BranchWorkingHours,
+    UserSession,
+    Service,
+    BranchSlot,
+    Appointment
+)
 from messaging import (
     build_name_confirmation_buttons,
     build_main_menu,
     build_branch_list,
     build_service_list,
-    build_date_list_page,
     build_session_list,
-    build_slot_list_page,
-    build_booking_confirmation_buttons
+    build_booking_confirmation_buttons,
+    build_dynamic_slot_list,
+    build_dynamic_slot_list_page,
 )
-from datetime import time
+    
+from datetime import datetime, date, time, timedelta
 from helpers import (
     extract_payload,
     paginate_items,
@@ -218,6 +227,173 @@ def process_message(
             "No problem 😊\n\n"
             "Please enter your name again."
         )
+    #
+
+    # ==========================================
+    # MY APPOINTMENTS
+    # ==========================================
+    if (
+        session.step == "MAIN_MENU"
+        and effective_input == "menu_my_appointments"
+    ):
+
+        appointments = (
+            db.query(
+                Appointment,
+                Branch,
+                Service
+            )
+            .join(
+                Branch,
+                Branch.id == Appointment.branch_id
+            )
+            .join(
+                Service,
+                Service.id == Appointment.service_id
+            )
+            .filter(
+                Appointment.user_id == session.user_id,
+                Appointment.business_id == session.business_id,
+                Appointment.status == "booked"
+            )
+            .order_by(
+                Appointment.appointment_date,
+                Appointment.start_time
+            )
+            .all()
+        )
+
+        # --------------------------------------
+        # No appointments
+        # --------------------------------------
+        if not appointments:
+
+            return {
+                "message": (
+                    "📋 You don't have any upcoming appointments."
+                ),
+                "buttons": [
+                    {
+                        "title": "🏠 Main Menu",
+                        "payload": "menu"
+                    }
+                ]
+            }
+
+        # --------------------------------------
+        # Build appointment details
+        # --------------------------------------
+        appointment_details = []
+
+        for index, (
+            appointment,
+            branch,
+            service
+        ) in enumerate(
+            appointments,
+            start=1
+        ):
+
+            date_text = (
+                appointment.appointment_date
+                .strftime("%d %B %Y")
+            )
+
+            start_text = (
+                appointment.start_time
+                .strftime("%I:%M %p")
+                .lstrip("0")
+            )
+
+            end_text = (
+                appointment.end_time
+                .strftime("%I:%M %p")
+                .lstrip("0")
+            )
+
+            appointment_details.append(
+                f"{index}️⃣ {service.name}\n"
+                f"📍 {branch.name}\n"
+                f"📅 {date_text}\n"
+                f"🕒 {start_text} - {end_text}\n"
+                f"🟢 Confirmed"
+            )
+
+        # --------------------------------------
+        # Return appointments
+        # --------------------------------------
+        return {
+            "message": (
+                "📋 Your Appointments\n\n"
+                + "\n\n".join(
+                    appointment_details
+                )
+            ),
+            "buttons": [
+                {
+                    "title": "🏠 Main Menu",
+                    "payload": "menu"
+                }
+            ]
+        }
+    # ==========================================
+    # BRANCHES & TIMINGS
+    # ==========================================
+    if (
+        session.step == "MAIN_MENU"
+        and effective_input == "menu_branches"
+    ):
+
+        branches = (
+            db.query(Branch)
+            .filter(
+                Branch.business_id == session.business_id,
+                Branch.is_active == True
+            )
+            .order_by(Branch.name)
+            .all()
+        )
+
+        if not branches:
+            return "❌ No branches are currently available."
+
+        branch_details = []
+
+        for branch in branches:
+
+            branch_info = (
+                f"📍 {branch.name}\n\n"
+                f"🕒 Working Hours:\n"
+                f"Monday - Saturday: 10:00 AM - 8:00 PM\n\n"
+            )
+
+            if branch.address:
+                branch_info += (
+                    f"📌 Address:\n"
+                    f"{branch.address}\n\n"
+                )
+
+            if branch.maps_url:
+                branch_info += (
+                    f"🗺️ Google Maps:\n"
+                    f"{branch.maps_url}\n\n"
+                )
+
+            branch_details.append(branch_info)
+
+        return {
+            "message": (
+                "🏢 Our Branches & Timings\n\n"
+                + "\n".join(branch_details)
+            ),
+            "buttons": [
+                {
+                    "title": "🏠 Main Menu",
+                    "payload": "menu"
+                }
+            ]
+        }
+
 
     # ==========================================
     # BOOK APPOINTMENT
@@ -323,229 +499,490 @@ def process_message(
         if not service:
 
             return "Invalid service selected."
-
+        #
         session.service_id = service.id
-        date_rows = (
-            db.query(BranchSlot.slot_date)
-            .filter(
-                BranchSlot.branch_id == session.branch_id,
-                BranchSlot.status == "available"
-            )
-            .distinct()
-            .order_by(BranchSlot.slot_date)
-            .all()
-        )
-        available_dates = [
-            row[0]
-            for row in date_rows
-        ]
-        if not available_dates:
-
-            return (
-                "Sorry, no dates are available "
-                "for this branch."
-            )        
-
         session.step = "SELECT_DATE"
 
         db.commit()
 
-        
-        return build_date_list_page(
-            available_dates
-        )
+        return (
+            "📅 Please enter your preferred appointment date.\n\n"
+            "Format: DD/MM/YYYY\n"
+            "Example: 25/08/2026"
+        )     
 
+    #
     # ==========================================
     # SELECT DATE
     # ==========================================
-    if (
-        session.step == "SELECT_DATE"
-    ):
+    if session.step == "SELECT_DATE":
 
         # -------------------------------
-        # Pagination
+        # Parse Date
         # -------------------------------
-        if effective_input.startswith("date_page_"):
+        try:
+            selected_date = datetime.strptime(
+                effective_input.strip(),
+                "%d/%m/%Y"
+            ).date()
 
-            page = int(
-                effective_input.replace(
-                    "date_page_",
-                    ""
-                )
+        except ValueError:
+
+            return (
+                "❌ Invalid date format.\n\n"
+                "Please enter the date as DD/MM/YYYY.\n"
+                "Example: 25/08/2026"
             )
 
-            date_rows = (
-                db.query(BranchSlot.slot_date)
+        # -------------------------------
+        # Prevent Past Dates
+        # -------------------------------
+        if selected_date < date.today():
+
+            return (
+                "❌ You cannot select a past date.\n\n"
+                "Please enter a future date."
+            )
+
+        # -------------------------------
+        # Check Branch
+        # -------------------------------
+        branch = (
+            db.query(Branch)
+            .filter(
+                Branch.id == session.branch_id,
+                Branch.is_active == True
+            )
+            .first()
+        )
+
+        if not branch:
+            return "Branch not found."
+
+        # -------------------------------
+        # Check Working Hours
+        # -------------------------------
+        weekday = selected_date.strftime("%A")
+
+        working_hours = (
+            db.query(BranchWorkingHours)
+            .filter(
+                BranchWorkingHours.branch_id == session.branch_id,
+                BranchWorkingHours.weekday == weekday,
+                BranchWorkingHours.is_active == True
+            )
+            .first()
+        )
+
+        if not working_hours:
+
+            return (
+                f"❌ We are closed on {weekday}.\n\n"
+                "Please select another date."
+            )
+
+        if (
+            working_hours.start_time is None
+            or working_hours.end_time is None
+        ):
+
+            return (
+                "❌ Working hours are not configured "
+                "for this day."
+            )
+
+        # -------------------------------
+        # Save Selected Date
+        # -------------------------------
+        session.selected_date = selected_date
+
+        # -------------------------------
+        # Generate Dynamic Slots
+        # -------------------------------
+        slot_duration = branch.slot_duration_minutes
+
+        current_datetime = datetime.combine(
+            selected_date,
+            working_hours.start_time
+        )
+
+        closing_datetime = datetime.combine(
+            selected_date,
+            working_hours.end_time
+        )
+
+        available_slots = []
+
+        while current_datetime < closing_datetime:
+
+            slot_end_datetime = (
+                current_datetime
+                + timedelta(minutes=slot_duration)
+            )
+
+            # Don't create a slot beyond
+            # closing time
+            if slot_end_datetime > closing_datetime:
+                break
+
+            slot_start = current_datetime.time()
+            slot_end = slot_end_datetime.time()
+
+            # -------------------------------
+            # Check Capacity
+            # -------------------------------
+            booked_count = (
+                db.query(Appointment)
                 .filter(
-                    BranchSlot.branch_id == session.branch_id,
-                    BranchSlot.status == "available"
+                    Appointment.branch_id == session.branch_id,
+                    Appointment.appointment_date == selected_date,
+                    Appointment.start_time == slot_start,
+                    Appointment.status == "booked"
                 )
-                .distinct()
-                .order_by(BranchSlot.slot_date)
-                .all()
+                .count()
             )
 
-            available_dates = [
-                row[0]
-                for row in date_rows
+            if booked_count < branch.capacity:
+
+                available_slots.append({
+                    "start_time": slot_start,
+                    "end_time": slot_end
+                })
+
+            current_datetime = slot_end_datetime
+
+        # -------------------------------
+        # No Available Slots
+        # -------------------------------
+        if not available_slots:
+
+            return (
+                "❌ Sorry, no slots are available "
+                "for the selected date."
+            )
+
+        # -------------------------------
+        # Find Available Sessions
+        # -------------------------------
+        available_sessions = []
+
+        for booking_session in BOOKING_SESSIONS:
+
+            session_slots = [
+                slot
+                for slot in available_slots
+                if (
+                    booking_session["start"]
+                    <= slot["start_time"]
+                    < booking_session["end"]
+                )
             ]
 
-            return build_date_list_page(
-                available_dates,
-                page
+            if session_slots:
+
+                available_sessions.append(
+                    booking_session
+                )
+
+        # -------------------------------
+        # No Sessions
+        # -------------------------------
+        if not available_sessions:
+
+            return (
+                "❌ Sorry, no slots are available "
+                "for the selected date."
             )
 
         # -------------------------------
-        # Date Selected
+        # Move to Session Selection
         # -------------------------------
-        if effective_input.startswith("date_"):
+        session.step = "SELECT_SESSION"
 
-            index = int(
-                effective_input.replace(
-                    "date_",
-                    ""
-                )
-            )
+        db.commit()
 
-            date_rows = (
-                db.query(BranchSlot.slot_date)
-                .filter(
-                    BranchSlot.branch_id == session.branch_id,
-                    BranchSlot.status == "available"
-                )
-                .distinct()
-                .order_by(BranchSlot.slot_date)
-                .all()
-            )
-
-            available_dates = [
-                row[0]
-                for row in date_rows
-            ]
-
-            if index >= len(available_dates):
-
-                return "Invalid date selected."
-            
-            selected_date = available_dates[index]
-
-            session.selected_date = selected_date
-
-            available_slots = get_available_slots(
-                db,
-                session.branch_id,
-                selected_date
-            )
-
-            available_sessions = []
-
-            for booking_session in BOOKING_SESSIONS:
-
-                session_slots = [
-                    item
-                    for item in available_slots
-                    if (
-                        booking_session["start"]
-                        <= item["slot"].start_time
-                        < booking_session["end"]
-                    )
-                ]
-
-                if session_slots:
-                    available_sessions.append(
-                        booking_session
-                    )            
-            if not available_sessions:
-
-                return (
-                    "Sorry, no slots are available "
-                    "for the selected date."
-                )
-
-            session.step = "SELECT_SESSION"
-
-            db.commit()
-
-            return build_session_list(
-                available_sessions
-            )         
-
+        return build_session_list(
+            available_sessions
+        )             
+    #
     # ==========================================
     # SELECT SESSION
     # ==========================================
     if session.step == "SELECT_SESSION":
 
-        if effective_input in [
-            "morning",
-            "afternoon",
-            "evening"
-        ]:
+        # --------------------------------------
+        # Validate session selection
+        # --------------------------------------
+        selected_session = next(
+            (
+                booking_session
+                for booking_session in BOOKING_SESSIONS
+                if booking_session["id"] == effective_input
+            ),
+            None
+        )
 
-            selected_session = next(
-                (
-                    booking_session
-                    for booking_session in BOOKING_SESSIONS
-                    if booking_session["id"] == effective_input
-                ),
-                None
+        if not selected_session:
+
+            return "Invalid session selected."
+
+        # --------------------------------------
+        # Get branch
+        # --------------------------------------
+        branch = (
+            db.query(Branch)
+            .filter(
+                Branch.id == session.branch_id,
+                Branch.is_active == True
+            )
+            .first()
+        )
+
+        if not branch:
+            return "Branch not found."
+
+        # --------------------------------------
+        # Get working hours
+        # --------------------------------------
+        weekday = session.selected_date.strftime("%A")
+
+        working_hours = (
+            db.query(BranchWorkingHours)
+            .filter(
+                BranchWorkingHours.branch_id == session.branch_id,
+                BranchWorkingHours.weekday == weekday,
+                BranchWorkingHours.is_active == True
+            )
+            .first()
+        )
+
+        if not working_hours:
+            return (
+                f"❌ We are closed on {weekday}."
             )
 
-            if not selected_session:
+        # --------------------------------------
+        # Generate slots dynamically
+        # --------------------------------------
+        current_datetime = datetime.combine(
+            session.selected_date,
+            working_hours.start_time
+        )
 
-                return "Invalid session selected."
+        closing_datetime = datetime.combine(
+            session.selected_date,
+            working_hours.end_time
+        )
 
-            available_slots = get_available_slots(
-                db,
-                session.branch_id,
-                session.selected_date
-            )
+        available_slots = []
 
-            # --------------------------------------
-            # Keep only selected session slots
-            # --------------------------------------
-            available_slots = [
-                item
-                for item in available_slots
-                if (
-                    selected_session["start"]
-                    <= item["slot"].start_time
-                    < selected_session["end"]
+        while current_datetime < closing_datetime:
+
+            slot_end_datetime = (
+                current_datetime
+                + timedelta(
+                    minutes=branch.slot_duration_minutes
                 )
-            ]
+            )
 
-            # --------------------------------------
-            # No slots in this session
-            # --------------------------------------
-            if not available_slots:
+            # Don't generate a slot beyond closing time
+            if slot_end_datetime > closing_datetime:
+                break
 
-                return (
-                    "Sorry, no slots are available "
-                    "for this session."
+            slot_start = current_datetime.time()
+            slot_end = slot_end_datetime.time()
+
+            # ----------------------------------
+            # Check appointment capacity
+            # ----------------------------------
+            booked_count = (
+                db.query(Appointment)
+                .filter(
+                    Appointment.branch_id == session.branch_id,
+                    Appointment.appointment_date == session.selected_date,
+                    Appointment.start_time == slot_start,
+                    Appointment.status == "booked"
                 )
-
-            session.selected_session = (
-                selected_session["id"]
+                .count()
             )
 
-            session.step = "SELECT_SLOT"
+            if booked_count < branch.capacity:
 
-            db.commit()
+                available_slots.append({
+                    "start_time": slot_start,
+                    "end_time": slot_end
+                })
 
-            return build_slot_list_page(
-                available_slots
+            current_datetime = slot_end_datetime
+
+        # --------------------------------------
+        # Filter slots for selected session
+        # --------------------------------------
+        session_slots = [
+            slot
+            for slot in available_slots
+            if (
+                selected_session["start"]
+                <= slot["start_time"]
+                < selected_session["end"]
+            )
+        ]
+
+        # --------------------------------------
+        # No slots in this session
+        # --------------------------------------
+        if not session_slots:
+
+            return (
+                f"❌ No slots are available in the "
+                f"{selected_session['title']} session.\n\n"
+                "Please select another session."
             )
 
+        # --------------------------------------
+        # Save selected session
+        # --------------------------------------
+        session.selected_session = selected_session["id"]
 
+        session.step = "SELECT_SLOT"
+
+        db.commit()
+
+        return build_dynamic_slot_list(
+            session_slots
+        )    
+
+    #
     # ==========================================
     # SELECT SLOT
     # ==========================================
-    if (
-        session.step == "SELECT_SLOT"
-    ):
+    if session.step == "SELECT_SLOT":
 
         # --------------------------------------
-        # SLOT PAGINATION
+        # Get Branch
         # --------------------------------------
+        branch = (
+            db.query(Branch)
+            .filter(
+                Branch.id == session.branch_id,
+                Branch.is_active == True
+            )
+            .first()
+        )
+
+        if not branch:
+            return "Branch not found."
+
+        # --------------------------------------
+        # Get Selected Session
+        # --------------------------------------
+        selected_session = next(
+            (
+                booking_session
+                for booking_session in BOOKING_SESSIONS
+                if booking_session["id"] == session.selected_session
+            ),
+            None
+        )
+
+        if not selected_session:
+            return "Invalid session."
+
+        # --------------------------------------
+        # Get Working Hours
+        # --------------------------------------
+        weekday = session.selected_date.strftime("%A")
+
+        working_hours = (
+            db.query(BranchWorkingHours)
+            .filter(
+                BranchWorkingHours.branch_id == session.branch_id,
+                BranchWorkingHours.weekday == weekday,
+                BranchWorkingHours.is_active == True
+            )
+            .first()
+        )
+
+        if not working_hours:
+            return (
+                f"❌ We are closed on {weekday}."
+            )
+
+        # --------------------------------------
+        # Generate Dynamic Slots
+        # --------------------------------------
+        current_datetime = datetime.combine(
+            session.selected_date,
+            working_hours.start_time
+        )
+
+        closing_datetime = datetime.combine(
+            session.selected_date,
+            working_hours.end_time
+        )
+
+        available_slots = []
+
+        while current_datetime < closing_datetime:
+
+            slot_end_datetime = (
+                current_datetime
+                + timedelta(
+                    minutes=branch.slot_duration_minutes
+                )
+            )
+
+            if slot_end_datetime > closing_datetime:
+                break
+
+            slot_start = current_datetime.time()
+            slot_end = slot_end_datetime.time()
+
+            # ----------------------------------
+            # Check Capacity
+            # ----------------------------------
+            booked_count = (
+                db.query(Appointment)
+                .filter(
+                    Appointment.branch_id == session.branch_id,
+                    Appointment.appointment_date == session.selected_date,
+                    Appointment.start_time == slot_start,
+                    Appointment.status == "booked"
+                )
+                .count()
+            )
+
+            if booked_count < branch.capacity:
+
+                available_slots.append({
+                    "start_time": slot_start,
+                    "end_time": slot_end
+                })
+
+            current_datetime = slot_end_datetime
+
+        # --------------------------------------
+        # Filter Selected Session
+        # --------------------------------------
+        session_slots = [
+            slot
+            for slot in available_slots
+            if (
+                selected_session["start"]
+                <= slot["start_time"]
+                < selected_session["end"]
+            )
+        ]
+
+        if not session_slots:
+            return (
+                "❌ Sorry, this session no longer "
+                "has any available slots."
+            )
+
+        # ======================================
+        # SLOT PAGINATION
+        # ======================================
         if effective_input.startswith("slot_page_"):
 
             page = int(
@@ -555,92 +992,46 @@ def process_message(
                 )
             )
 
-            slots = get_available_slots(
-                db,
-                session.branch_id,
-                session.selected_date
-            )
-
-            selected_session = next(
-                (
-                    booking_session
-                    for booking_session in BOOKING_SESSIONS
-                    if booking_session["id"] == session.selected_session
-                ),
-                None
-            )
-
-            if not selected_session:
-                return "Invalid session."
-
-            slots = [
-                item
-                for item in slots
-                if (
-                    selected_session["start"]
-                    <= item["slot"].start_time
-                    < selected_session["end"]
-                )
-            ]
-
-            return build_slot_list_page(
-                slots,
+            return build_dynamic_slot_list_page(
+                session_slots,
                 page
-            )            
+            )
 
-        # --------------------------------------
+        # ======================================
         # SLOT SELECTED
-        # --------------------------------------
+        # ======================================
         if effective_input.startswith("slot_"):
 
-            slot_id = int(
+            index = int(
                 effective_input.replace(
                     "slot_",
                     ""
                 )
             )
-            selected_session = next(
-                (
-                    booking_session
-                    for booking_session in BOOKING_SESSIONS
-                    if booking_session["id"] == session.selected_session
-                ),
-                None
-            )
 
-            if not selected_session:
-
-                return "Invalid session."
-
-            slot = (
-                db.query(BranchSlot)
-                .filter(
-                    BranchSlot.id == slot_id,
-                    BranchSlot.branch_id == session.branch_id,
-                    BranchSlot.status == "available",
-                    BranchSlot.start_time >= selected_session["start"],
-                    BranchSlot.start_time < selected_session["end"]
-                )
-                .first()
-            )
-
-            if not slot:
-
+            if index < 0 or index >= len(session_slots):
                 return "Invalid slot selected."
 
-            session.branch_slot_id = slot.id
+            selected_slot = session_slots[index]
+
+            # ----------------------------------
+            # Save Selected Time
+            # ----------------------------------
+            session.selected_start_time = (
+                selected_slot["start_time"]
+            )
+
+            session.selected_end_time = (
+                selected_slot["end_time"]
+            )
+
             session.step = "CONFIRM_BOOKING"
 
             db.commit()
 
-            branch = (
-                db.query(Branch)
-                .filter(
-                    Branch.id == session.branch_id
-                )
-                .first()
-            )
-
+            # ----------------------------------
+            # Get Service
+            # ----------------------------------
             service = (
                 db.query(Service)
                 .filter(
@@ -649,18 +1040,23 @@ def process_message(
                 .first()
             )
 
+            if not service:
+                return "Service not found."
+
             return build_booking_confirmation_buttons(
                 branch,
                 service,
-                slot
+                session.selected_date,
+                session.selected_start_time,
+                session.selected_end_time
             )
+        return "Invalid slot selection."    
+    #
         
     # ==========================================
     # CONFIRM BOOKING
     # ==========================================
-    if (
-        session.step == "CONFIRM_BOOKING"
-    ):
+    if session.step == "CONFIRM_BOOKING":
 
         # --------------------------------------
         # RESET BOOKING
@@ -670,6 +1066,8 @@ def process_message(
             session.branch_id = None
             session.service_id = None
             session.selected_date = None
+            session.selected_start_time = None
+            session.selected_end_time = None
             session.selected_session = None
             session.branch_slot_id = None
             session.step = "MAIN_MENU"
@@ -693,42 +1091,85 @@ def process_message(
         # --------------------------------------
         if effective_input == "booking_confirm":
 
+            # ----------------------------------
             # Fetch Branch
+            # ----------------------------------
             branch = (
                 db.query(Branch)
                 .filter(
-                    Branch.id == session.branch_id
+                    Branch.id == session.branch_id,
+                    Branch.is_active == True
                 )
                 .first()
-             )
+            )
 
-            # Count existing bookings
+            if not branch:
+                return "❌ Branch not found."
+
+            # ----------------------------------
+            # Fetch Service
+            # ----------------------------------
+            service = (
+                db.query(Service)
+                .filter(
+                    Service.id == session.service_id,
+                    Service.is_active == True
+                )
+                .first()
+            )
+
+            if not service:
+                return "❌ Service not found."
+
+            # ----------------------------------
+            # Validate Selected Date / Time
+            # ----------------------------------
+            if (
+                not session.selected_date
+                or not session.selected_start_time
+                or not session.selected_end_time
+            ):
+                return (
+                    "❌ Your booking session has expired.\n\n"
+                    "Please start the booking again."
+                )
+
+            # ----------------------------------
+            # FINAL CAPACITY CHECK
+            # ----------------------------------
             booked_count = (
                 db.query(Appointment)
                 .filter(
-                    Appointment.branch_slot_id == session.branch_slot_id,
+                    Appointment.branch_id == session.branch_id,
+                    Appointment.appointment_date == session.selected_date,
+                    Appointment.start_time == session.selected_start_time,
                     Appointment.status == "booked"
                 )
                 .count()
             )
 
-            remaining = (
-                branch.capacity - booked_count
-            )
-
-            if remaining <= 0:
+            # ----------------------------------
+            # Slot Became Full
+            # ----------------------------------
+            if booked_count >= branch.capacity:
 
                 return (
-                    "❌ Sorry, this slot is full.\n\n"
+                    "❌ Sorry, this slot was just booked "
+                    "by another customer.\n\n"
                     "Please select another slot."
                 )
 
+            # ----------------------------------
+            # Create Appointment
+            # ----------------------------------
             appointment = Appointment(
                 user_id=session.user_id,
                 business_id=session.business_id,
                 branch_id=session.branch_id,
                 service_id=session.service_id,
-                branch_slot_id=session.branch_slot_id,
+                appointment_date=session.selected_date,
+                start_time=session.selected_start_time,
+                end_time=session.selected_end_time,
                 status="booked"
             )
 
@@ -736,19 +1177,69 @@ def process_message(
 
             db.commit()
 
+            # ----------------------------------
+            # Store Details Before Reset
+            # ----------------------------------
+            appointment_date = session.selected_date
+            start_time = session.selected_start_time
+            end_time = session.selected_end_time
+
+            branch_name = branch.name
+            branch_address = branch.address
+            maps_url = branch.maps_url
+
+            service_name = service.name
+
+            # ----------------------------------
+            # Reset Booking Session
+            # ----------------------------------
             session.branch_id = None
             session.service_id = None
             session.selected_date = None
+            session.selected_start_time = None
+            session.selected_end_time = None
             session.selected_session = None
             session.branch_slot_id = None
             session.step = "MAIN_MENU"
 
             db.commit()
 
+            # ----------------------------------
+            # Build Location Text
+            # ----------------------------------
+            location_text = ""
+
+            if branch_address:
+                location_text += (
+                    f"📍 Address: {branch_address}\n"
+                )
+
+            if maps_url:
+                location_text += (
+                    f"🗺️ Google Maps: {maps_url}\n"
+                )
+
+            # ----------------------------------
+            # Booking Confirmation
+            # ----------------------------------
             return {
                 "message": (
-                    "🎉 Your appointment has been booked successfully!"
+                    "🎉 Appointment Confirmed!\n\n"
+
+                    f"📍 Branch: {branch_name}\n"
+                    f"💇 Service: {service_name}\n"
+                    f"📅 Date: "
+                    f"{appointment_date.strftime('%d/%m/%Y')}\n"
+                    f"⏰ Time: "
+                    f"{start_time.strftime('%I:%M %p')} - "
+                    f"{end_time.strftime('%I:%M %p')}\n\n"
+
+                    f"{location_text}\n"
+
+                    "Thank you for booking with "
+                    "Hair Destination! 💙"
                 ),
+
                 "buttons": [
                     {
                         "title": "🏠 Main Menu",
@@ -756,6 +1247,8 @@ def process_message(
                     }
                 ]
             }
+
+        return "Invalid booking option."
         
     
     # ==========================================

@@ -7,13 +7,14 @@ from sqlalchemy.orm import Session
 from datetime import date
 
 from database import SessionLocal
+
 from models import (
     User,
     Branch,
     Service,
-    BranchSlot,
     Appointment
 )
+
 from security import get_current_admin
 
 
@@ -44,6 +45,7 @@ def get_db():
 
 @router.get("/appointments")
 def get_appointments(
+
     status: str = None,
     branch_id: int = None,
     service_id: int = None,
@@ -57,21 +59,21 @@ def get_appointments(
     db: Session = Depends(get_db)
 ):
 
+    # ======================================================
+    # BASE QUERY
+    # ======================================================
+
     query = (
         db.query(Appointment)
-        .join(
-            BranchSlot,
-            Appointment.branch_slot_id
-            == BranchSlot.id
-        )
         .filter(
             Appointment.status != "deleted"
         )
     )
 
-    # --------------------------------------
+
+    # ======================================================
     # STATUS FILTER
-    # --------------------------------------
+    # ======================================================
 
     if status:
 
@@ -79,9 +81,10 @@ def get_appointments(
             Appointment.status == status
         )
 
-    # --------------------------------------
+
+    # ======================================================
     # BRANCH FILTER
-    # --------------------------------------
+    # ======================================================
 
     if branch_id:
 
@@ -89,9 +92,10 @@ def get_appointments(
             Appointment.branch_id == branch_id
         )
 
-    # --------------------------------------
+
+    # ======================================================
     # SERVICE FILTER
-    # --------------------------------------
+    # ======================================================
 
     if service_id:
 
@@ -99,50 +103,55 @@ def get_appointments(
             Appointment.service_id == service_id
         )
 
-    # --------------------------------------
-    # FROM DATE
-    # --------------------------------------
+
+    # ======================================================
+    # FROM DATE FILTER
+    # ======================================================
 
     if from_date:
 
         query = query.filter(
-            BranchSlot.slot_date >= from_date
+            Appointment.appointment_date >= from_date
         )
 
-    # --------------------------------------
-    # TO DATE
-    # --------------------------------------
+
+    # ======================================================
+    # TO DATE FILTER
+    # ======================================================
 
     if to_date:
 
         query = query.filter(
-            BranchSlot.slot_date <= to_date
+            Appointment.appointment_date <= to_date
         )
 
-    # --------------------------------------
+
+    # ======================================================
     # ORDER
-    # --------------------------------------
+    # ======================================================
 
     appointments = (
         query
         .order_by(
-            BranchSlot.slot_date,
-            BranchSlot.start_time
+            Appointment.appointment_date,
+            Appointment.start_time
         )
         .all()
     )
 
+
+    # ======================================================
+    # BUILD RESPONSE
+    # ======================================================
+
     result = []
 
-    # ======================================
-    # BUILD RESPONSE
-    # ======================================
 
     for appointment in appointments:
 
-        # ----------------------------------
-        # Customer
-        # ----------------------------------
+        # --------------------------------------------------
+        # CUSTOMER
+        # --------------------------------------------------
 
         user = (
             db.query(User)
@@ -152,9 +161,10 @@ def get_appointments(
             .first()
         )
 
-        # ----------------------------------
-        # Branch
-        # ----------------------------------
+
+        # --------------------------------------------------
+        # BRANCH
+        # --------------------------------------------------
 
         branch = (
             db.query(Branch)
@@ -164,9 +174,10 @@ def get_appointments(
             .first()
         )
 
-        # ----------------------------------
-        # Service
-        # ----------------------------------
+
+        # --------------------------------------------------
+        # SERVICE
+        # --------------------------------------------------
 
         service = (
             db.query(Service)
@@ -176,18 +187,10 @@ def get_appointments(
             .first()
         )
 
-        # ----------------------------------
-        # Slot
-        # ----------------------------------
 
-        slot = (
-            db.query(BranchSlot)
-            .filter(
-                BranchSlot.id
-                == appointment.branch_slot_id
-            )
-            .first()
-        )
+        # --------------------------------------------------
+        # RESPONSE
+        # --------------------------------------------------
 
         result.append(
             {
@@ -218,21 +221,24 @@ def get_appointments(
                 ),
 
                 "date": (
-                    str(slot.slot_date)
-                    if slot
-                    else ""
+                    str(
+                        appointment.appointment_date
+                    )
                 ),
 
                 "time": (
-                    slot.start_time.strftime(
-                        "%I:%M %p"
-                    )
-                    if slot
-                    else ""
+                    f"{appointment.start_time.strftime('%I:%M %p')}"
+                    f" - "
+                    f"{appointment.end_time.strftime('%I:%M %p')}"
                 ),
 
                 "status": appointment.status
             }
         )
+
+
+    # ======================================================
+    # RETURN
+    # ======================================================
 
     return result

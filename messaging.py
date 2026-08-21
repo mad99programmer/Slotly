@@ -1,19 +1,19 @@
 from config import TEST_MODE, ZERNIO_API_KEY
+
 import requests
+import time
+
 from helpers import (
     extract_payload,
     paginate_items,
     has_next_page,
-    has_previous_page,
-    get_available_slots
+    has_previous_page
 )
-from datetime import date
-import time
-import requests
 
 
-
-
+# ==========================================================
+# MAIN MENU
+# ==========================================================
 def build_main_menu(user_name):
 
     return {
@@ -37,11 +37,7 @@ def build_main_menu(user_name):
                             },
                             {
                                 "id": "menu_my_appointments",
-                                "title": "📋 My Appointments"
-                            },
-                            {
-                                "id": "menu_cancel",
-                                "title": "❌ Cancel Appointment"
+                                "title": "📋 Upcoming Appointments"
                             },
                             {
                                 "id": "menu_branches",
@@ -54,22 +50,27 @@ def build_main_menu(user_name):
         }
     }
 
-# =========================
-# SEND WHATSAPP MESSAGE using ZERNIO
-# =========================
+
+# ==========================================================
+# SEND WHATSAPP MESSAGE USING ZERNIO
+# ==========================================================
 def send_reply(
     conversation_id: str,
     account_id: str,
     message
 ):
+
     if TEST_MODE:
+
         print("\nBOT REPLY:")
         print(message)
+
         return True
 
-    # -------------------------
-    # Build request body
-    # -------------------------
+    # ------------------------------------------------------
+    # BUILD REQUEST BODY
+    # ------------------------------------------------------
+
     if isinstance(message, str):
 
         body = {
@@ -98,7 +99,7 @@ def send_reply(
     print(body)
 
     url = (
-        f"https://zernio.com/api/v1/inbox/conversations/"
+        "https://zernio.com/api/v1/inbox/conversations/"
         f"{conversation_id}/messages"
     )
 
@@ -127,19 +128,31 @@ def send_reply(
 
             print(response.text)
 
-            # Success
+            # --------------------------------------------------
+            # SUCCESS
+            # --------------------------------------------------
+
             if response.status_code in [200, 201]:
+
                 return True
 
-            # Retry only for transient server errors
-            if response.status_code in [500, 502, 503, 504]:
+            # --------------------------------------------------
+            # RETRY TRANSIENT ERRORS
+            # --------------------------------------------------
+
+            if response.status_code in [
+                500,
+                502,
+                503,
+                504
+            ]:
 
                 if attempt < max_retries - 1:
 
                     wait = 2 ** attempt
 
                     print(
-                        f"Transient error."
+                        "Transient error."
                         f" Retrying in {wait} seconds..."
                     )
 
@@ -147,7 +160,10 @@ def send_reply(
 
                     continue
 
-            # Client errors (400,401,403...)
+            # --------------------------------------------------
+            # CLIENT ERROR
+            # --------------------------------------------------
+
             return False
 
         except requests.exceptions.Timeout:
@@ -172,11 +188,16 @@ def send_reply(
 
             time.sleep(wait)
 
-    print("Failed to send message after all retries.")
+    print(
+        "Failed to send message after all retries."
+    )
 
     return False
 
 
+# ==========================================================
+# NAME CONFIRMATION
+# ==========================================================
 def build_name_confirmation_buttons(name):
 
     return {
@@ -195,6 +216,11 @@ def build_name_confirmation_buttons(name):
             }
         ]
     }
+
+
+# ==========================================================
+# BRANCH LIST
+# ==========================================================
 def build_branch_list(
     business,
     branches
@@ -232,6 +258,10 @@ def build_branch_list(
         }
     }
 
+
+# ==========================================================
+# SERVICE LIST
+# ==========================================================
 def build_service_list(services):
 
     rows = []
@@ -265,7 +295,7 @@ def build_service_list(services):
 
 
 # ==========================================================
-# BUILD DATE LIST
+# DATE LIST
 # ==========================================================
 def build_date_list_page(
     available_dates,
@@ -295,6 +325,10 @@ def build_date_list_page(
             }
         )
 
+    # ------------------------------------------------------
+    # PREVIOUS
+    # ------------------------------------------------------
+
     if has_previous_page(page):
 
         rows.append(
@@ -303,6 +337,10 @@ def build_date_list_page(
                 "title": "⬅ Previous Dates"
             }
         )
+
+    # ------------------------------------------------------
+    # NEXT
+    # ------------------------------------------------------
 
     if has_next_page(
         available_dates,
@@ -320,7 +358,10 @@ def build_date_list_page(
         "interactive": {
             "type": "list",
             "body": {
-                "text": "📅 Please select your preferred appointment date."
+                "text": (
+                    "📅 Please select your preferred "
+                    "appointment date."
+                )
             },
             "action": {
                 "button": "Select Date",
@@ -334,6 +375,10 @@ def build_date_list_page(
         }
     }
 
+
+# ==========================================================
+# SESSION LIST
+# ==========================================================
 def build_session_list(sessions):
 
     rows = []
@@ -365,77 +410,128 @@ def build_session_list(sessions):
             }
         }
     }
-def build_booking_confirmation_buttons(
-    branch,
-    service,
-    slot
+
+
+# ==========================================================
+# DYNAMIC SLOT LIST
+#
+# NEW SYSTEM
+#
+# session_slots contains:
+#
+# {
+#     "start_time": time(...),
+#     "end_time": time(...)
+# }
+#
+# No BranchSlot object is required.
+# ==========================================================
+def build_dynamic_slot_list(
+    session_slots
 ):
 
-    return {
-        "message": (
-            "✨ Please review your appointment details.\n\n"
-
-            f"📍 Branch : {branch.name}\n"
-            f"✂ Service : {service.name}\n"
-            f"📅 Date : {slot.slot_date.strftime('%d %B %Y')}\n"
-            f"🕒 Time : {slot.start_time.strftime('%I:%M %p')}\n\n"
-
-            "Would you like to confirm this booking?"
-        ),
-        "buttons": [
-            {
-                "title": "✅ Confirm",
-                "payload": "booking_confirm"
-            },
-            {
-                "title": "🔄 Start Over",
-                "payload": "reset_data"
-            }
-        ]
-    }
-def build_slot_list_page(
-    slots,
-    page=0
-):
+    page = 0
 
     page_slots = paginate_items(
-        slots,
+        session_slots,
         page
     )
 
     rows = []
 
-    for item in page_slots:
+    for index, slot in enumerate(page_slots):
 
-        slot = item["slot"]
-
-        remaining = item["remaining"]
-
-        if remaining == 1:
-
-            description = "🔴 Last spot"
-
-        elif remaining <= 2:
-
-            description = (
-                f"🟡 {remaining} spots left"
-            )
-
-        else:
-
-            description = (
-                f"🟢 Available"
-            )
+        actual_index = (
+            page * 8 + index
+        )
 
         rows.append(
             {
-                "id": f"slot_{slot.id}",
-                "title": slot.start_time.strftime(
-                    "%I:%M %p"
+                "id": f"slot_{actual_index}",
+                "title": (
+                    f"{slot['start_time'].strftime('%I:%M %p').lstrip('0')}"
+                    f" - "
+                    f"{slot['end_time'].strftime('%I:%M %p').lstrip('0')}"
                 ),
-                "description": description
+                "description": "🟢 Available"
             }
         )
+
+    # ------------------------------------------------------
+    # NEXT PAGE
+    # ------------------------------------------------------
+
+    if has_next_page(
+        session_slots,
+        page
+    ):
+
+        rows.append(
+            {
+                "id": "slot_page_1",
+                "title": "➡ More Slots"
+            }
+        )
+
+    return {
+        "interactive": {
+            "type": "list",
+            "body": {
+                "text": (
+                    "🕒 Please select your preferred time slot."
+                )
+            },
+            "action": {
+                "button": "Select Slot",
+                "sections": [
+                    {
+                        "title": "Available Slots",
+                        "rows": rows
+                    }
+                ]
+            }
+        }
+    }
+
+
+# ==========================================================
+# DYNAMIC SLOT PAGINATION
+# ==========================================================
+def build_dynamic_slot_list_page(
+    session_slots,
+    page=0
+):
+
+    page_slots = paginate_items(
+        session_slots,
+        page
+    )
+
+    rows = []
+
+    start_index = page * 8
+
+    for index, slot in enumerate(page_slots):
+
+        actual_index = (
+            start_index + index
+        )
+
+        rows.append(
+            {
+                "id": f"slot_{actual_index}",
+                "title": (
+                    f"{slot['start_time'].strftime('%I:%M %p').lstrip('0')}"
+                    f" - "
+                    f"{slot['end_time'].strftime('%I:%M %p').lstrip('0')}"
+                ),
+                "description": "🟢 Available"
+            }
+        )
+
+    # ------------------------------------------------------
+    # PREVIOUS PAGE
+    # ------------------------------------------------------
 
     if has_previous_page(page):
 
@@ -446,8 +542,12 @@ def build_slot_list_page(
             }
         )
 
+    # ------------------------------------------------------
+    # NEXT PAGE
+    # ------------------------------------------------------
+
     if has_next_page(
-        slots,
+        session_slots,
         page
     ):
 
@@ -476,4 +576,43 @@ def build_slot_list_page(
                 ]
             }
         }
+    }
+
+
+# ==========================================================
+# BOOKING CONFIRMATION
+# ==========================================================
+def build_booking_confirmation_buttons(
+    branch,
+    service,
+    appointment_date,
+    start_time,
+    end_time
+):
+
+    return {
+        "message": (
+            "✨ Please review your appointment details.\n\n"
+
+            f"📍 Branch: {branch.name}\n"
+            f"💇 Service: {service.name}\n"
+            f"📅 Date: "
+            f"{appointment_date.strftime('%d %B %Y')}\n"
+            f"🕒 Time: "
+            f"{start_time.strftime('%I:%M %p')}"
+            f" - "
+            f"{end_time.strftime('%I:%M %p')}\n\n"
+
+            "Would you like to confirm this booking?"
+        ),
+        "buttons": [
+            {
+                "title": "✅ Confirm",
+                "payload": "booking_confirm"
+            },
+            {
+                "title": "🔄 Start Over",
+                "payload": "reset_data"
+            }
+        ]
     }
