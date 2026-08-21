@@ -8,6 +8,8 @@ from models import (
     BranchSlot,
     Appointment
 )
+
+
 from messaging import (
     build_name_confirmation_buttons,
     build_main_menu,
@@ -254,7 +256,8 @@ def process_message(
             .filter(
                 Appointment.user_id == session.user_id,
                 Appointment.business_id == session.business_id,
-                Appointment.status == "booked"
+                Appointment.status == "booked",
+                Appointment.appointment_date >= date.today()
             )
             .order_by(
                 Appointment.appointment_date,

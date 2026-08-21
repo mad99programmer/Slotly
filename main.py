@@ -134,8 +134,8 @@ async def webhook_zernio(request: Request, db: Session = Depends(get_db)):
         message = payload.get("message", {})
         account = payload.get("account", {})
         message_id = message.get("id")
-        if message_id and is_duplicate(message_id):
-            return {"status": "duplicate, skipped"}
+        #if message_id and is_duplicate(message_id):
+        #    return {"status": "duplicate, skipped"}
 
         user_number = message.get("sender", {}).get("phoneNumber")
         incoming_msg = message.get("text", "").strip()
