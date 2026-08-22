@@ -64,7 +64,24 @@ def get_appointments(
     # ======================================================
 
     query = (
-        db.query(Appointment)
+        db.query(
+            Appointment,
+            User,
+            Branch,
+            Service
+        )
+        .join(
+            User,
+            User.id == Appointment.user_id
+        )
+        .join(
+            Branch,
+            Branch.id == Appointment.branch_id
+        )
+        .join(
+            Service,
+            Service.id == Appointment.service_id
+        )
         .filter(
             Appointment.status != "deleted"
         )
@@ -146,51 +163,7 @@ def get_appointments(
 
     result = []
 
-
-    for appointment in appointments:
-
-        # --------------------------------------------------
-        # CUSTOMER
-        # --------------------------------------------------
-
-        user = (
-            db.query(User)
-            .filter(
-                User.id == appointment.user_id
-            )
-            .first()
-        )
-
-
-        # --------------------------------------------------
-        # BRANCH
-        # --------------------------------------------------
-
-        branch = (
-            db.query(Branch)
-            .filter(
-                Branch.id == appointment.branch_id
-            )
-            .first()
-        )
-
-
-        # --------------------------------------------------
-        # SERVICE
-        # --------------------------------------------------
-
-        service = (
-            db.query(Service)
-            .filter(
-                Service.id == appointment.service_id
-            )
-            .first()
-        )
-
-
-        # --------------------------------------------------
-        # RESPONSE
-        # --------------------------------------------------
+    for appointment, user, branch, service in appointments:
 
         result.append(
             {
